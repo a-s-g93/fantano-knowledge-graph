@@ -1,3 +1,6 @@
+# misc
+Neo4j-45*.txt
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
