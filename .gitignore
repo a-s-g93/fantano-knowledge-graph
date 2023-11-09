@@ -1,5 +1,6 @@
 # misc
 Neo4j-45*.txt
+credentials.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
