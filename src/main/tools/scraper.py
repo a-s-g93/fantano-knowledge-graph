@@ -28,7 +28,12 @@ class Scraper:
  
         self.service_account = os.environ.get('GCP_SERVICE_ACCOUNT_KEY_PATH')
         self.bucket_name = os.environ.get("GCP_BUCKET_NAME")
-        self.bucket = self.client.get_bucket(self.bucket_name)
+
+        if self.client.bucket(self.bucket_name).exists:
+            self.bucket = self.client.get_bucket(self.bucket_name)
+        else:
+            raise ValueError("Bucket does not exist. Please create bucket via GCP console and try again.")
+            
 
         # track failed transcript creations
         # This can happen with unaired live videos
@@ -36,6 +41,8 @@ class Scraper:
 
         self._channel_id = self._get_channel_id if not channel_id else channel_id
         self._uploads_id = self._get_uploads_id if not uploads_id else uploads_id
+
+        self._scraped_videos = None
 
 
     @property
@@ -114,7 +121,10 @@ class Scraper:
         unsuccessful = []
 
         ids = self._get_youtube_video_ids()
-        for id in ids[:10]:
+
+        total_ids = len(ids)
+
+        for idx, id in enumerate(ids[:10]):
             try:
                 transcript = self._create_transcript(video_id=id)
                 self._upload_transcript(transcript=transcript, video_id=id)
@@ -123,6 +133,10 @@ class Scraper:
                 print("Failed: "+id)
                 # print(e)
                 unsuccessful+=[id]
+            
+            if idx % (total_ids / 5.0) == 0:
+                print("Created & Uploaded : ", round((idx+1) / total_ids * 100, 2))
+                print("Failed             : ", len(unsuccessful))
 
         self._unsuccessful_list = unsuccessful  
 
@@ -173,7 +187,7 @@ class Scraper:
         return data['items'][0]['contentDetails']['relatedPlaylists']['uploads']
 
 
-    def scrape_video_addresses(self, next_page_token: str = None, total_results: int = -1, videos: List[str] = []) -> List[str]:
+    def scrape_video_ids(self, next_page_token: str = None, total_results: int = -1, videos: List[str] = []) -> List[str]:
             
         address = f"https://www.googleapis.com/youtube/v3/playlistItems?playlistId={self._uploads_id}&key={os.environ.get('YOUTUBE_API_KEY')}&part=snippet&maxResults=50"
         
@@ -196,10 +210,18 @@ class Scraper:
 
         if "nextPageToken" not in vids.keys():
             print("complete")
-            return videos
+            self._scraped_videos = videos
         
-        next_page_token = vids['nextPageToken']
+        self.scrape_video_ids(next_page_token=vids['nextPageToken'], total_results=total_results, videos=videos)
+    
+    def upload_scraped_video_ids(self) -> None:
+        """
+        This method uploads the scraped video ids to a new csv in the designated GCP Storage bucket.
+        """
+        file_loc = "youtube/"
+        file_name = "youtube_ids"
+        data = pd.DataFrame({"YouTube_ids": self._scraped_videos})
 
-        self.scrape_video_addresses(next_page_token=next_page_token, total_results=total_results, videos=videos)
+        self.bucket.blob(file_loc+file_name+".csv").upload_from_string(data.to_csv(), 'text/csv')
 
-        return videos
+        

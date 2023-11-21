@@ -1,13 +1,13 @@
-import time
+# import time
 from typing import List, Optional
 
 from neo4j.exceptions import ConstraintError
 from neo4j import Driver
 
-from langchain.chat_models import ChatVertexAI, AzureChatOpenAI
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationSummaryBufferMemory
-from langchain.prompts.prompt import PromptTemplate
+# from langchain.chat_models import ChatVertexAI, AzureChatOpenAI
+# from langchain.chains import ConversationChain
+# from langchain.memory import ConversationSummaryBufferMemory
+# from langchain.prompts.prompt import PromptTemplate
 
 import drivers
 from credentials import credentials
@@ -55,7 +55,7 @@ class DAO:
 
             session.close()
 
-    def neo4j_vector_index_search(self, embeddings: List[float], k: int = 10):
+    def neo4j_vector_index_search(self, embeddings: List[float], k: int = 10) -> None:
         """
         This method runs vector similarity search on the document embeddings against the question embedding.
         """
