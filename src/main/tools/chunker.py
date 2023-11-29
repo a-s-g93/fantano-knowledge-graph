@@ -2,6 +2,7 @@ from typing import Callable, Dict
 from typing import List, Tuple
 import os
 import io
+import json
 
 import pandas as pd
 from langchain.schema.document import Document
@@ -59,7 +60,7 @@ class Chunker:
         transcript loading process.
         """
         result = id.replace("youtube/transcripts/", "")
-        return result.replace(".txt", "")
+        return result.replace(".json", "")
     
     def _get_transcript_text(self, id: str) -> str:
         """
@@ -69,6 +70,12 @@ class Chunker:
         transcript = self.bucket.get_blob("youtube/transcripts/"+id+".txt").download_as_text()
         
         return transcript
+    
+    def _get_video_info(self, id: str) -> Dict[str, str]:
+
+        info = json.loads(self.bucket.get_blob("youtube/transcripts/"+id+".json").download_as_text())
+        
+        return info
 
     def _scrape_youtube_transcripts_into_langchain_docs(self, id_list: List[str] = None) -> Tuple[List[Document], List[str]]:
         """
@@ -86,9 +93,11 @@ class Chunker:
         # grab the transcripts and format into LangChain docs
         for id in id_list:
             try:
-                transcript = self._get_transcript_text(id)
+                info = self._get_video_info(id)
                 url = "https://www.youtube.com/watch?v="+id
-                docs.append(Document(page_content=transcript, metadata={"source": url}))
+                docs.append(Document(page_content=info['transcript'], metadata={"video_id": id,
+                                                                                "source": url, 
+                                                                                "title": info['title']}))
             except Exception as e:
                 print(f"Error loading document with id: {id}")
                 print(f"Error: {e}")

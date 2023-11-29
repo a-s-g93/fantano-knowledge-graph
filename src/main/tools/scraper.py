@@ -105,7 +105,8 @@ class Scraper:
         """
 
         file_loc = "youtube/transcripts/"
-        to_upload = {"title": title,
+        to_upload = {"video_id": video_id,
+                     "title": title,
                      "transcript": transcript}
         self.bucket.blob(file_loc+video_id+".json").upload_from_string(json.dumps(to_upload), content_type='application/json')
 
