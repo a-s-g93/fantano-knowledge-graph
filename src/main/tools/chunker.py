@@ -36,22 +36,26 @@ class Chunker:
         self._assert_documents_chunked()
         return list({chunk.metadata.get('source', '') for chunk in self._chunked_documents})
 
+    # TODO: make dict hold all properties
     @property
     def chunks_as_dict(self) -> Dict[str, List[str]]:
         self._assert_documents_chunked()
 
         result = {}
         for k in self.chunk_urls:
-            result.update({k: []})
+            result.update({k: dict()})
         
         for chunk in self._chunked_documents:
-            result.get(chunk.metadata.get('source')).append(chunk.page_content)
+            result.get(chunk.metadata.get('source')).update({"video_id": chunk.metadata.get("video_id"),
+                                                             "title": chunk.metadata.get("title"),
+                                                             "transcript": chunk.page_content
+                                                             })
 
         return result
 
     def _assert_documents_chunked(self):
         if not self._chunked_documents:
-            raise ValueError("Documents have not been chunked yet. Call chunk_documents() first.")
+            raise ValueError("Documents have not been chunked yet. Call chunk_youtube_transcripts() first.")
     
     @staticmethod
     def _process_youtube_id(id) -> str:
@@ -62,14 +66,14 @@ class Chunker:
         result = id.replace("youtube/transcripts/", "")
         return result.replace(".json", "")
     
-    def _get_transcript_text(self, id: str) -> str:
-        """
-        This method gets the transcript text from the GCP storage bucket address.
-        """
+    # def _get_transcript_text(self, id: str) -> str:
+    #     """
+    #     This method gets the transcript text from the GCP storage bucket address.
+    #     """
 
-        transcript = self.bucket.get_blob("youtube/transcripts/"+id+".txt").download_as_text()
+    #     transcript = self.bucket.get_blob("youtube/transcripts/"+id+".txt").download_as_text()
         
-        return transcript
+    #     return transcript
     
     def _get_video_info(self, id: str) -> Dict[str, str]:
 
@@ -105,9 +109,9 @@ class Chunker:
 
         return docs, unsuccessful
 
-    def _split_into_chunks(self, documents: List[Document],
-                           splitter: Callable[[List[Document]], List[Document]]) -> List[Document]:
-        return splitter.split_documents(documents)
+    # def _split_into_chunks(self, documents: List[Document],
+    #                        splitter: Callable[[List[Document]], List[Document]]) -> List[Document]:
+    #     return splitter.split_documents(documents)
     
     def chunk_youtube_transcripts(self, ids: List[str] = None) -> None:
       
@@ -119,7 +123,8 @@ class Chunker:
         documents, failed = self._scrape_youtube_transcripts_into_langchain_docs(ids)
 
         # Start splitting
-        chunked_docs = self._split_into_chunks(documents, splitter)
+        # chunked_docs = self._split_into_chunks(documents, splitter)
+        chunked_docs = splitter.split_documents(documents=documents)
 
         self._chunked_documents.extend(chunked_docs)
 

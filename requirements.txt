@@ -4,4 +4,5 @@ google-cloud-storage==2.13.0
 langchain==0.0.311
 neo4j==5.8.0
 pandas==2.1.2
+tiktoken==0.5.1
 youtube-transcript-api==0.6.1

@@ -110,6 +110,7 @@ class Scraper:
                      "transcript": transcript}
         self.bucket.blob(file_loc+video_id+".json").upload_from_string(json.dumps(to_upload), content_type='application/json')
 
+    # TODO: Multi-thread this process
     def create_and_upload_transcripts(self) -> None:
         """
         This method:
@@ -140,7 +141,7 @@ class Scraper:
                                 "title": info['title']}]
             
             if idx % (total / 5.0) == 0:
-                print("Created & Uploaded : ", round((idx+1) / total * 100, 2))
+                print("Created & Uploaded : ", round((idx+1) / total * 100, 2), "%")
                 print("Failed             : ", len(unsuccessful))
 
             # for demoing
