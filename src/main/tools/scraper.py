@@ -133,20 +133,20 @@ class Scraper:
             try:
                 transcript = self._create_transcript(video_id=id)
                 self._upload_transcript(transcript=transcript, video_id=id, title=info['title'])
-                print("Video "+id+" Uploaded to GCP Storage.")
+                # print("Video "+id+" Uploaded to GCP Storage.")
             except Exception as e:
                 print("Failed: "+id)
                 # print(e)
                 unsuccessful+=[{"id": id,
                                 "title": info['title']}]
             
-            if idx % (total / 5.0) == 0:
+            if idx % 50 == 0:
                 print("Created & Uploaded : ", round((idx+1) / total * 100, 2), "%")
                 print("Failed             : ", len(unsuccessful))
 
             # for demoing
-            if idx >= 10:
-                break
+            # if idx >= 10:
+            #     break
 
         self._unsuccessful_list = unsuccessful  
 

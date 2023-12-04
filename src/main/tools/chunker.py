@@ -36,7 +36,6 @@ class Chunker:
         self._assert_documents_chunked()
         return list({chunk.metadata.get('source', '') for chunk in self._chunked_documents})
 
-    # TODO: make dict hold all properties
     @property
     def chunks_as_dict(self) -> Dict[str, List[str]]:
         self._assert_documents_chunked()
@@ -50,6 +49,24 @@ class Chunker:
                                                              "title": chunk.metadata.get("title"),
                                                              "transcript": chunk.page_content
                                                              })
+
+        return result
+
+    @property
+    def chunks_as_list(self) -> Dict[str, List[str]]:
+        self._assert_documents_chunked()
+
+        result = []
+        
+        for chunk in self._chunked_documents:
+            result+=[   
+                        {
+                        "video_id": chunk.metadata.get("video_id"),
+                        "video_address": 'https://www.youtube.com/watch?v='+chunk.metadata.get("video_id"),
+                        "title": chunk.metadata.get("title"),
+                        "transcript": chunk.page_content
+                        }
+                    ]
 
         return result
 

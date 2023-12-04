@@ -1,31 +1,29 @@
 # import time
-from typing import List, Optional
+from typing import List, Optional, Dict
+import os
 
 from neo4j.exceptions import ConstraintError
 from neo4j import Driver
 
-# from langchain.chat_models import ChatVertexAI, AzureChatOpenAI
-# from langchain.chains import ConversationChain
-# from langchain.memory import ConversationSummaryBufferMemory
-# from langchain.prompts.prompt import PromptTemplate
+from n4j import drivers
+# from credentials import credentials
 
-import drivers
-from credentials import credentials
-
-class DAO:
+class Communicator:
     """
     The constructor expects an instance of the Neo4j Driver, which will be
     used to interact with Neo4j.
     This class contains methods necessary to interact with the Neo4j database.
     """
 
-    def __init__(self, driver: Driver) -> None:
+    def __init__(self, driver: Driver = None) -> None:
         
         if not driver:
-            self.driver = drivers.init_driver(credentials['uri'], username=credentials['username'], password=credentials['password'])
+            self.driver = drivers.init_driver(os.environ.get("NEO4J_URI"), 
+                                              username=os.environ.get("NEO4J_USERNAME"), 
+                                              password=os.environ.get("NEO4J_PASSWORD"))
         else:
             self.driver = driver
-        self.database_name = credentials['database']
+        self.database_name = os.environ.get("NEO4J_DATABASE")
 
 
     def test_database_connection(self):
@@ -79,4 +77,31 @@ class DAO:
 
             session.close()
 
-    
+    def upload_transcripts(self, data: List[Dict[str, str]]) -> None:
+        """
+        This method uploads the video transcripts into the graph.
+        """
+
+        def run(tx):
+            tx.run(
+                """
+                unwind $data as row
+
+                merge (v:Video {id: row.video_id,
+                               address: row.video_address,
+                               title: row.title})
+                merge (d:Document {text: row.transcript})
+                merge (v)-[:HAS_DOCUMENT]->(d)
+                
+                """, data=data
+            )
+   
+        try:
+            with self.driver.session(database=self.database_name) as session:
+                print("database name: ", self.database_name)
+                session.execute_write(run)
+            
+        except ConstraintError as err:
+            print(err)
+
+            session.close()
