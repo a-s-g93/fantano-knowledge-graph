@@ -38,11 +38,6 @@ def prepare_new_nodes(data: List[Dict[str,str]], embedding_service: EmbeddingSer
         chunk.update({  "child_index": str(uuid4()),
                         "playlist_id": playlist_id,
                         "embedding": embedding_service.get_document_embedding(chunk['transcript'])})
-        
-        # stop = time.time()
-        # # abide by rate limit (1 per sec)
-        # while stop - start < 1:
-        #     stop = time.time()
 
             
     return new_nodes
