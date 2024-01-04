@@ -94,7 +94,6 @@ class Communicator:
                     child:Child,
                     child.createTime = datetime(),
                     child.text = param.transcript,
-                    child.url = param.url,
                     child.embedding = param.embedding,
                     
                     parent:Parent,
