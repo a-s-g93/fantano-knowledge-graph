@@ -20,7 +20,7 @@ class Scraper:
     This class provides methods for scraping transcripts from YouTube and loading new data into storage buckets.
     """
 
-    def __init__(self, channel_id: str = None, uploads_id: str = None) -> None:
+    def __init__(self, channel_id: str = None, playlist_id: str = None) -> None:
        
         credentials = service_account.Credentials.from_service_account_file(
                 os.environ.get('GCP_SERVICE_ACCOUNT_KEY_PATH')
@@ -41,7 +41,7 @@ class Scraper:
         self._unsuccessful_list = None
 
         self._channel_id = self._get_channel_id() if not channel_id else channel_id
-        self._uploads_id = self._get_uploads_id() if not uploads_id else uploads_id
+        self._playlist_id = self._get_playlist_id() if not playlist_id else playlist_id
 
         self._scraped_video_info = None
 
@@ -54,12 +54,12 @@ class Scraper:
         self._channel_id = channel_id
     
     @property
-    def uploads_id(self) -> str:
-        return self._uploads_id
+    def playlist_id(self) -> str:
+        return self._playlist_id
     
-    @uploads_id.setter
-    def uploads_id(self, uploads_id: str) -> None:
-        self._uploads_id = uploads_id
+    @playlist_id.setter
+    def playlist_id(self, playlist_id: str) -> None:
+        self._playlist_id = playlist_id
     
     def add_new_youtube_urls(self) -> None:
         """
@@ -68,16 +68,11 @@ class Scraper:
 
         pass
 
-    def _get_youtube_video_info(self) -> pd.DataFrame:
-        """
-        This method gets the YouTube video ids csv file from GCP Storage and 
-        returns a list of the video urls it contains.
-        """
+    def _get_youtube_video_info(self, video_info_file_name: str) -> pd.DataFrame:
 
-        videos_temp = self.bucket.get_blob("youtube/youtube_video_info.csv")
+        videos_temp = self.bucket.get_blob("youtube/"+video_info_file_name+".csv")
         videos_temp = videos_temp.download_as_string()
-        videos = pd.read_csv(io.BytesIO(videos_temp))[['id', 'title']]
-
+        videos = pd.read_csv(io.BytesIO(videos_temp))[['id', 'title', 'publish_date']]
         return videos
     
     @staticmethod
@@ -98,23 +93,27 @@ class Scraper:
         # replace newlines with a space 
         return transcript_formatted.replace("\n", " ")
     
-    def _upload_transcript(self, transcript: str, video_id: str, title: str) -> None:
+    def _upload_transcript(self, transcript: str, video_id: str, title: str, publish_date: str, folder: str = "") -> None:
         """
         This method uploads a transcript to GCP Storage.
         Uploading a file will automatically overwrite any existing file with the same id in storage.
         """
 
-        file_loc = "youtube/transcripts/"
+        if folder != "":
+            folder += "/"
+
+        file_loc = "youtube/transcripts/"+folder
         to_upload = {"video_id": video_id,
                      "title": title,
+                     "publish_date": publish_date,
                      "transcript": transcript}
         self.bucket.blob(file_loc+video_id+".json").upload_from_string(json.dumps(to_upload), content_type='application/json')
 
     # TODO: Multi-thread this process
-    def create_and_upload_transcripts(self) -> None:
+    def create_and_upload_transcripts(self, transcripts_folder: str = "", video_info_file_name: str = "video_info") -> List[str]:
         """
         This method:
-        1. gets the list of all video urls from GCP Storage.
+        1. gets the list of all neo4j video urls from GCP Storage.
         2. gets a transcript of each video. If unsuccessful, is added to list to be returned.
         3. uploads the transcript to GCP Storage.
 
@@ -124,7 +123,7 @@ class Scraper:
 
         unsuccessful = []
 
-        videos = self._get_youtube_video_info()
+        videos = self._get_youtube_video_info(video_info_file_name=video_info_file_name)
 
         total = len(videos)
 
@@ -132,32 +131,31 @@ class Scraper:
             id = info['id']
             try:
                 transcript = self._create_transcript(video_id=id)
-                self._upload_transcript(transcript=transcript, video_id=id, title=info['title'])
-                # print("Video "+id+" Uploaded to GCP Storage.")
+                self._upload_transcript(transcript=transcript, 
+                                        video_id=id, title=info['title'], 
+                                        publish_date=info['publish_date'],
+                                        folder=transcripts_folder)
+
             except Exception as e:
                 print("Failed: "+id)
-                # print(e)
                 unsuccessful+=[{"id": id,
-                                "title": info['title']}]
+                                "title": info['title'],
+                                "publish_date": info['publish_date']}]
             
-            if idx % 50 == 0:
-                print("Created & Uploaded : ", round((idx+1) / total * 100, 2), "%")
-                print("Failed             : ", len(unsuccessful))
+            if idx % 2 == 0:
+                print("Progress : ", round((idx+1) / total * 100, 2), "%", end="\r")
 
-            # for demoing
-            # if idx >= 10:
-            #     break
+        print("failed count: ", len(unsuccessful))
 
-        self._unsuccessful_list = unsuccessful  
+        self._unsuccessful_list = unsuccessful 
 
-    def update_unsuccessful_transcripts(self) -> None:
+    def update_unsuccessful_transcripts(self, file_name: str = "failed_video_info") -> None:
         """
         This method takes a list of unsuccessful YouTube ids and creates a new csv file
         in GCP Storage for later retrieval. 
         """
 
         file_loc = "youtube/"
-        file_name = "failed_video_info"
 
         # create failed df
         failed_df = pd.DataFrame.from_dict(self._unsuccessful_list)
@@ -168,7 +166,7 @@ class Scraper:
             videos_temp = self.bucket.get_blob(file_loc+file_name+".csv")
             videos_temp = videos_temp.download_as_string()
 
-            previous_failed_df =  pd.read_csv(io.BytesIO(videos_temp))[['id', 'title']]
+            previous_failed_df =  pd.read_csv(io.BytesIO(videos_temp))[['id', 'title', 'publish_date']]
 
             # append new failed df
             new_failed_df = pd.concat(previous_failed_df, failed_df)
@@ -192,7 +190,7 @@ class Scraper:
 
         return data['items'][0]['snippet']['channelId']
     
-    def _get_uploads_id(self) -> str:
+    def _get_playlist_id(self) -> str:
         """
         This method retrieves the uploads id for the channel of interest.
         """
@@ -209,7 +207,7 @@ class Scraper:
 
     def scrape_video_info(self, next_page_token: str = None, total_results: int = -1, videos: List[str] = []) -> List[str]:
             
-        address = f"https://www.googleapis.com/youtube/v3/playlistItems?playlistId={self.uploads_id}&key={os.environ.get('YOUTUBE_API_KEY')}&part=snippet&maxResults=50"
+        address = f"https://www.googleapis.com/youtube/v3/playlistItems?playlistId={self.playlist_id}&key={os.environ.get('YOUTUBE_API_KEY')}&part=snippet&maxResults=50"
         
         if not next_page_token:
             vid_req = requests.get(address)
@@ -224,7 +222,9 @@ class Scraper:
             print('total results set: ', total_results)
 
         videos += [{"id": x['snippet']['resourceId']['videoId'], 
-                    "title": x['snippet']['title']} for x in vids['items']]
+                    "title": x['snippet']['title'],
+                    "publish_date": x['snippet']['publishedAt'][:10]} for x in vids['items']]
+
 
         print("total results: ", total_results)
         print("ids retrieved: ", len(videos), "\n")
@@ -236,13 +236,13 @@ class Scraper:
         
         self.scrape_video_info(next_page_token=vids['nextPageToken'], total_results=total_results, videos=videos)
     
-    def upload_scraped_video_info(self) -> None:
+    def upload_scraped_video_info(self, file_name: str = "video_info") -> None:
         """
         This method uploads the scraped video ids to a new csv in the designated GCP Storage bucket.
         """
+
         file_loc = "youtube/"
-        file_name = "youtube_video_info"
-        # data = pd.DataFrame({"YouTube_video_ids": self._scraped_video_ids})
+
         data = pd.DataFrame.from_dict(self._scraped_video_info)
 
         self.bucket.blob(file_loc+file_name+".csv").upload_from_string(data.to_csv(), 'text/csv')

@@ -17,7 +17,7 @@ class Communicator:
 
     def __init__(self, driver: Driver = None) -> None:
         
-        if not driver:
+        if driver is None:
             self.driver = drivers.init_driver(os.environ.get("NEO4J_URI"), 
                                               username=os.environ.get("NEO4J_USERNAME"), 
                                               password=os.environ.get("NEO4J_PASSWORD"))
@@ -77,22 +77,36 @@ class Communicator:
 
             session.close()
 
-    def upload_transcripts(self, data: List[Dict[str, str]]) -> None:
+    def load_nodes(self, data: List[Dict[str, str]]) -> None:
         """
-        This method uploads the video transcripts into the graph.
+        This method uploads the formatted data into the graph.
         """
 
         def run(tx):
             tx.run(
-                """
-                unwind $data as row
+               query = """
+                UNWIND $data AS param
 
-                merge (v:Video {id: row.video_id,
-                               address: row.video_address,
-                               title: row.title})
-                merge (d:Document {text: row.transcript})
-                merge (v)-[:HAS_DOCUMENT]->(d)
-                
+                MERGE (child:Document {index: param.child_index})
+                MERGE (parent:Document {index: param.parent_index})
+                MERGE (s:Source {url: param.url})
+                SET
+                    child:Child,
+                    child.createTime = datetime(),
+                    child.text = param.transcript,
+                    child.url = param.url,
+                    child.embedding = param.embedding,
+                    
+                    parent:Parent,
+                    parent.text = param.parent_transcript,
+
+                    s.title = param.title,
+                    s.playlist_id = param.playlist_id,
+                    s.video_id = param.video_id,
+                    s.publish_date = param.publish_date
+                    
+                MERGE (parent)-[:HAS_SOURCE]->(s)
+                MERGE (child)-[:HAS_PARENT]->(parent)
                 """, data=data
             )
    
@@ -105,3 +119,37 @@ class Communicator:
             print(err)
 
             session.close()
+
+    def create_constraints(self) -> None:
+        """
+        Create the constraints. 
+        This method should be run before any data is uploaded.
+        """
+
+        def video_constraint(tx):
+            tx.run(
+                """
+                CREATE CONSTRAINT document_id FOR (d:Document) REQUIRE d.id IS UNIQUE
+                ;
+                """
+            )
+        def document_constraint(tx):
+            tx.run(
+                """
+                CREATE CONSTRAINT document_id FOR (d:Document) REQUIRE d.id IS UNIQUE
+                ;
+                """
+            )
+   
+        try:
+            with self.driver.session(database=self.database_name) as session:
+                print("database name: ", self.database_name)
+                session.execute_write(video_constraint)
+                session.execute_write(document_constraint)
+            
+        except ConstraintError as err:
+            print(err)
+
+            session.close()
+
+    
