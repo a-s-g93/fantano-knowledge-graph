@@ -16,5 +16,5 @@ class EmbeddingService:
         """
         Get embedding for a single document text string.
         """
-
+ 
         return self.embedding_service.embed_query(chunk_text)

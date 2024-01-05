@@ -164,7 +164,7 @@ class Communicator:
                 OPTIONS {indexConfig: {
                 `vector.dimensions`: 96,
                 `vector.similarity_function`: 'cosine'
-                }}
+                }} 
                 ;
                 """
             )
