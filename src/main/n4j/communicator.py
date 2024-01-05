@@ -125,10 +125,10 @@ class Communicator:
         This method should be run before any data is uploaded.
         """
 
-        def video_constraint(tx):
+        def source_constraint(tx):
             tx.run(
                 """
-                CREATE CONSTRAINT document_id FOR (d:Document) REQUIRE d.id IS UNIQUE
+                CREATE CONSTRAINT source_id FOR (s:Source) REQUIRE s.id IS UNIQUE
                 ;
                 """
             )
@@ -143,7 +143,7 @@ class Communicator:
         try:
             with self.driver.session(database=self.database_name) as session:
                 print("database name: ", self.database_name)
-                session.execute_write(video_constraint)
+                session.execute_write(source_constraint)
                 session.execute_write(document_constraint)
             
         except ConstraintError as err:
@@ -151,4 +151,31 @@ class Communicator:
 
             session.close()
 
-    
+    def create_indexes(self) -> None:
+        """
+        Create the indexes. 
+        """
+
+        def vector_index(tx):
+            tx.run(
+                """
+                CREATE VECTOR INDEX `text-embeddings`
+                FOR (n: Child) ON (n.embedding)
+                OPTIONS {indexConfig: {
+                `vector.dimensions`: 96,
+                `vector.similarity_function`: 'cosine'
+                }}
+                ;
+                """
+            )
+      
+   
+        try:
+            with self.driver.session(database=self.database_name) as session:
+                print("database name: ", self.database_name)
+                session.execute_write(vector_index)
+            
+        except ConstraintError as err:
+            print(err)
+
+            session.close()
