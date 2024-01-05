@@ -24,7 +24,6 @@ def remove_filler_words(text: str) -> str:
 def prepare_new_nodes(data: List[Dict[str,str]], embedding_service: EmbeddingService, playlist_id: str = "") -> List[Dict]:
     """
     format chunked data to be uploaded into neo4j graph.
-    embedding must abide by rate limits: 60 requests / minute
     """
 
     new_nodes = data.copy()
