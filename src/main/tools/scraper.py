@@ -122,6 +122,7 @@ class Scraper:
         """
 
         unsuccessful = []
+        fail_count = 0
 
         videos = self._get_youtube_video_info(video_info_file_name=video_info_file_name)
 
@@ -137,15 +138,19 @@ class Scraper:
                                         folder=transcripts_folder)
 
             except Exception as e:
-                print("Failed: "+id)
+                # print("Failed: "+id)
+                fail_count+=1
                 unsuccessful+=[{"id": id,
                                 "title": info['title'],
                                 "publish_date": info['publish_date']}]
             
             if idx % 2 == 0:
-                print("Progress : ", round((idx+1) / total * 100, 2), "%", end="\r")
+                print("Progress : ", round((idx+1) / total * 100, 2), "% | ", "failed: ", fail_count, end="\r")
+         
 
-        print("failed count: ", len(unsuccessful))
+        # print("failed count: ", len(unsuccessful))
+        print("Progress : ", round((idx+1) / total * 100, 2), "% | ", "failed: ", fail_count, end="\r")
+
 
         self._unsuccessful_list = unsuccessful 
 
@@ -226,8 +231,8 @@ class Scraper:
                     "publish_date": x['snippet']['publishedAt'][:10]} for x in vids['items']]
 
 
-        print("total results: ", total_results)
-        print("ids retrieved: ", len(videos), "\n")
+        print("total results: ", total_results, end='\r')
+        print("ids retrieved: ", len(videos), "\r")
 
         if "nextPageToken" not in vids.keys():
             print("complete")

@@ -1,7 +1,7 @@
 # misc
 Neo4j-*.txt
 credentials.py
-youtube_classics.csv
+*.csv
 images/
 
 # Byte-compiled / optimized / DLL files

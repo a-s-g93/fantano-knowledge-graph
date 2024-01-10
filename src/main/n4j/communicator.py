@@ -25,57 +25,12 @@ class Communicator:
             self.driver = driver
         self.database_name = os.environ.get("NEO4J_DATABASE")
 
-
-    def test_database_connection(self):
-        """
-            This function tests database connection.
-        """
-
-        def test(tx):
-            return tx.run(
-                """
-                match (d:Document)
-                return d
-                limit 1
-                """
-            ).data()
-   
-        try:
-            with self.driver.session(database=self.database_name) as session:
-                print("database name: ", self.database_name)
-                result = session.execute_read(test)
-                print("result: ", result)
-            
-                return result
-            
-        except ConstraintError as err:
-            print(err)
-
-            session.close()
-
-    def neo4j_vector_index_search(self, embeddings: List[float], k: int = 10) -> None:
-        """
-        This method runs vector similarity search on the document embeddings against the question embedding.
-        """
-
-        def run(tx):
-            return tx.run("""
-                        CALL db.index.vector.queryNodes('document-embeddings', toInteger($k), $questionEmbedding)
-                        YIELD node AS vDocs, score
-                        return vDocs.url as url, vDocs.text as text, vDocs.index as index
-                        """, {'questionEmbedding': embeddings, 'k': k}
-                        )
-        
-        try:
-            with self.driver.session(database=self.database_name) as session:
-                result = session.execute_read(run)
-            
-                return result
-            
-        except ConstraintError as err:
-            print(err)
-
-            session.close()
+class GraphWriter(Communicator):
+    """
+    Handles writes to the graph database.
+    """
+    def __init__(self, driver: Driver = None) -> None:
+        super().__init__(driver)
 
     def load_nodes(self, data: List[Dict[str, str]]) -> None:
         """
@@ -111,7 +66,6 @@ class Communicator:
    
         try:
             with self.driver.session(database=self.database_name) as session:
-                print("database name: ", self.database_name)
                 session.execute_write(run)
             
         except ConstraintError as err:
@@ -128,21 +82,20 @@ class Communicator:
         def source_constraint(tx):
             tx.run(
                 """
-                CREATE CONSTRAINT source_id FOR (s:Source) REQUIRE s.id IS UNIQUE
+                CREATE CONSTRAINT source_url FOR (s:Source) REQUIRE s.url IS UNIQUE
                 ;
                 """
             )
         def document_constraint(tx):
             tx.run(
                 """
-                CREATE CONSTRAINT document_id FOR (d:Document) REQUIRE d.id IS UNIQUE
+                CREATE CONSTRAINT document_id FOR (d:Document) REQUIRE d.index IS UNIQUE
                 ;
                 """
             )
    
         try:
             with self.driver.session(database=self.database_name) as session:
-                print("database name: ", self.database_name)
                 session.execute_write(source_constraint)
                 session.execute_write(document_constraint)
             
@@ -151,7 +104,7 @@ class Communicator:
 
             session.close()
 
-    def create_indexes(self) -> None:
+    def create_indexes(self, vector_dimensions: int) -> None:
         """
         Create the indexes. 
         """
@@ -162,18 +115,49 @@ class Communicator:
                 CREATE VECTOR INDEX `text-embeddings`
                 FOR (n: Child) ON (n.embedding)
                 OPTIONS {indexConfig: {
-                `vector.dimensions`: 96,
+                `vector.dimensions`: {vector_dims},
                 `vector.similarity_function`: 'cosine'
                 }} 
                 ;
-                """
+                """.format(vector_dims=vector_dimensions)
             )
       
    
         try:
             with self.driver.session(database=self.database_name) as session:
-                print("database name: ", self.database_name)
                 session.execute_write(vector_index)
+            
+        except ConstraintError as err:
+            print(err)
+
+            session.close()
+
+class GraphReader(Communicator):
+    """
+    Handles reads from the graph database.
+    """
+
+    def __init__(self, driver: Driver = None) -> None:
+        super().__init__(driver)
+
+    def neo4j_vector_index_search(self, embeddings: List[float], k: int = 10) -> None:
+        """
+        This method runs vector similarity search on the document embeddings against the question embedding.
+        """
+
+        def run(tx):
+            return tx.run("""
+                        CALL db.index.vector.queryNodes('document-embeddings', toInteger($k), $questionEmbedding)
+                        YIELD node AS vDocs, score
+                        return vDocs.url as url, vDocs.text as text, vDocs.index as index
+                        """, {'questionEmbedding': embeddings, 'k': k}
+                        )
+        
+        try:
+            with self.driver.session(database=self.database_name) as session:
+                result = session.execute_read(run)
+            
+                return result
             
         except ConstraintError as err:
             print(err)
