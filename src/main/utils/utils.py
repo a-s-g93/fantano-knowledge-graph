@@ -21,7 +21,7 @@ def remove_filler_words(text: str) -> str:
     # remove extra whitespace
     return text.strip()
 
-def prepare_new_nodes(data: List[Dict[str,str]], embedding_service: EmbeddingService, playlist_id: str = "") -> List[Dict]:
+def prepare_new_nodes(data: List[Dict[str,str]], embedding_service: EmbeddingService = None, playlist_id: str = "") -> List[Dict]:
     """
     format chunked data to be uploaded into neo4j graph.
     """
@@ -30,13 +30,12 @@ def prepare_new_nodes(data: List[Dict[str,str]], embedding_service: EmbeddingSer
 
     for chunk in new_nodes:
         
-
-        start = time.time()
-
-        # make request
         chunk.update({  "child_index": str(uuid4()),
-                        "playlist_id": playlist_id,
-                        "embedding": embedding_service.get_document_embedding(chunk['transcript'])})
+                        "playlist_id": playlist_id
+                        })
+        
+        # make request
+        if embedding_service is not None:
+             chunk.update({"embedding": embedding_service.get_document_embedding(chunk['transcript'])})
 
-            
     return new_nodes
